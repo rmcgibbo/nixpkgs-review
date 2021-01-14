@@ -20,16 +20,20 @@ def find_nixpkgs_root() -> Optional[str]:
 
 
 class Buildenv:
+    def __init__(self, require_nixpkgs_checkout: bool = False):
+        self.require_nixpkgs_checkout = require_nixpkgs_checkout
+
     def __enter__(self) -> None:
         self.environ = os.environ.copy()
         self.old_cwd = os.getcwd()
 
-        root = find_nixpkgs_root()
-        if root is None:
-            warn("Has to be executed from nixpkgs repository")
-            sys.exit(1)
-        else:
-            os.chdir(root)
+        if self.require_nixpkgs_checkout:
+            root = find_nixpkgs_root()
+            if root is None:
+                warn("Has to be executed from nixpkgs repository")
+                sys.exit(1)
+            else:
+                os.chdir(root)
 
         os.environ["GIT_AUTHOR_NAME"] = "nixpkgs-review"
         os.environ["GIT_AUTHOR_EMAIL"] = "nixpkgs-review@example.com"

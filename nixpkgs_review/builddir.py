@@ -75,6 +75,7 @@ class Builddir:
 
         with DisableKeyboardInterrupt():
             shutil.rmtree(self.worktree_dir)
-            sh(["git", "worktree", "prune"])
+            if os.path.exists(".git"):
+                sh(["git", "worktree", "prune"])
 
         self.overlay.cleanup()

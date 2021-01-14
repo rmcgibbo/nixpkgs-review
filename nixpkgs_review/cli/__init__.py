@@ -35,6 +35,10 @@ def pr_flags(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
     )
 
     pr_parser.add_argument(
+        "--no-nixpkgs-checkout", action="store_true", default=False,
+        help="Download tarball rather than relying on local nixpkgs checkout",
+    )
+    pr_parser.add_argument(
         "-c",
         "--checkout",
         default="merge",

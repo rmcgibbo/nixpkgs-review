@@ -2,6 +2,7 @@ import argparse
 import os
 import subprocess
 import sys
+import urllib.parse
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from enum import Enum
@@ -174,6 +175,12 @@ class Review:
         else:
             self.git_worktree(pr_rev)
 
+    def fetch_pr_tarball(self, commit_sha: str) -> None:
+        url = f"https://github.com/NixOS/nixpkgs/tarball/{commit_sha}"
+        cmd = f"curl -L {url} | tar --strip-components 1 -xz --directory {self.worktree_dir()}"
+        subprocess.run(cmd, shell=True, check=True)
+        os.listdir(self.worktree_dir())
+
     def build(self, packages: Set[str], args: str) -> List[Attr]:
         packages = filter_packages(
             packages,
@@ -183,6 +190,17 @@ class Review:
             self.skip_packages_regex,
         )
         return nix_build(packages, args, self.builddir.path)
+
+    def build_pr_tarball(self, pr_number: int) -> List[Attr]:
+        pr = self.github_client.pull_request(pr_number)
+        assert self.use_ofborg_eval
+        packages_per_system = self.github_client.get_borg_eval_gist(pr)
+        assert packages_per_system is not None
+        commit_sha = os.path.basename(urllib.parse.urlparse(pr["statuses_url"]).path)
+
+        self.fetch_pr_tarball(commit_sha)
+        packages = native_packages(packages_per_system)
+        return self.build(packages, self.build_args)
 
     def build_pr(self, pr_number: int) -> List[Attr]:
         pr = self.github_client.pull_request(pr_number)

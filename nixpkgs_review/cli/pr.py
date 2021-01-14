@@ -43,7 +43,7 @@ def pr_command(args: argparse.Namespace) -> None:
 
     contexts = []
 
-    with Buildenv(), ExitStack() as stack:
+    with Buildenv(require_nixpkgs_checkout=not args.no_nixpkgs_checkout), ExitStack() as stack:
         for pr in prs:
             builddir = stack.enter_context(Builddir(f"pr-{pr}"))
             try:
@@ -59,7 +59,10 @@ def pr_command(args: argparse.Namespace) -> None:
                     skip_packages_regex=args.skip_package_regex,
                     checkout=checkout_option,
                 )
-                contexts.append((pr, builddir.path, review.build_pr(pr)))
+                if args.no_nixpkgs_checkout:
+                    contexts.append((pr, builddir.path, review.build_pr_tarball(pr)))
+                else:
+                    contexts.append((pr, builddir.path, review.build_pr(pr)))
             except subprocess.CalledProcessError:
                 warn(f"https://github.com/NixOS/nixpkgs/pull/{pr} failed to build")
 
