@@ -17,7 +17,10 @@ class GithubClient:
         self, path: str, method: str, data: Optional[Dict[str, Any]] = None
     ) -> Any:
         url = urllib.parse.urljoin("https://api.github.com/", path)
-        headers = {"Content-Type": "application/json"}
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/vnd.github.v3+json",
+        }
         if self.api_token:
             headers["Authorization"] = f"token {self.api_token}"
 
@@ -32,7 +35,7 @@ class GithubClient:
     def get(self, path: str) -> Any:
         return self._request(path, "GET")
 
-    def post(self, path: str, data: Dict[str, str]) -> Any:
+    def post(self, path: str, data: Dict[str, Any]) -> Any:
         return self._request(path, "POST", data)
 
     def put(self, path: str) -> Any:
@@ -90,3 +93,8 @@ class GithubClient:
                     packages_per_system[system].add(attribute)
                 return packages_per_system
         return None
+
+    def upload_gist(self, name: str, content: str) -> Dict[str, Any]:
+        data = dict(files={name: {"content": content}}, public=True)
+        resp: Dict[str, Any] = self.post("/gists", data=data)
+        return resp

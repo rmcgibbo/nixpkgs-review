@@ -36,6 +36,7 @@ python3.pkgs.buildPythonApplication rec {
   shellHook = ''
     # workaround because `python setup.py develop` breaks for me
   '';
+  # doCheck = false;
 
   passthru.env = buildEnv { inherit name; paths = buildInputs ++ checkInputs; };
 }

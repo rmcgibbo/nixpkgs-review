@@ -29,7 +29,10 @@ def html_pkgs_section(packages: List[Attr], msg: str, what: str = "package") -> 
     res = "<details>\n"
     res += f"  <summary>{len(packages)} {what}{plural} {msg}:</summary>\n  <ul>\n"
     for pkg in packages:
-        res += f"    <li>{pkg.name}"
+        if pkg.log_url is not None:
+            res += f"    <li><a href=\"{pkg.log_url}\">{pkg.name}</a></li>"
+        else:
+            res += f"    <li>{pkg.name}"
         if len(pkg.aliases) > 0:
             res += f" ({' ,'.join(pkg.aliases)})"
         res += "</li>\n"

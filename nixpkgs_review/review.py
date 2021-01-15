@@ -7,7 +7,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import IO, Dict, List, Optional, Pattern, Set, Tuple
+from typing import Any, IO, Dict, List, Optional, Pattern, Set, Tuple
 
 from .builddir import Builddir
 from .github import GithubClient
@@ -240,6 +240,7 @@ class Review:
         path: Path,
         pr: Optional[int] = None,
         post_result: Optional[bool] = False,
+        post_logs: Optional[bool] = False,
     ) -> None:
         os.environ["NIX_PATH"] = path.as_posix()
         if pr:
@@ -247,6 +248,9 @@ class Review:
         report = Report(current_system(), attr)
         report.print_console(pr)
         report.write(path, pr)
+
+        if pr and post_result and post_logs:
+            self.upload_build_logs(attr)
 
         if pr and post_result:
             with open(f"pr-{pr}.md", "w") as f:
@@ -256,6 +260,18 @@ class Review:
             sys.exit(0 if report.succeeded() else 1)
         else:
             nix_shell(report.built_packages(), path)
+
+    def upload_build_logs(self, attr: List[Attr]) -> List[Optional[Dict[str, Any]]]:
+        gists: List[Optional[Dict[str, Any]]] = []
+        for pkg in attr:
+            log_content = nix_log(pkg)
+            if log_content is not None:
+                gist = self.github_client.upload_gist(name=pkg.name, content=log_content)
+                pkg.log_url = gist["html_url"]
+                gists.append(gist)
+            else:
+                gists.append(None)
+        return gists
 
     def review_commit(
         self,
@@ -467,3 +483,20 @@ def review_local_revision(
             package_regexes=args.package_regex,
         )
         review.review_commit(builddir.path, args.branch, args.remote, commit, staged)
+
+
+def nix_log(attr: Attr) -> Optional[str]:
+    if attr.drv_path is None:
+        return None
+    system = subprocess.run(
+        [
+            "nix",
+            "--experimental-features",
+            "nix-command",
+            "log",
+            attr.drv_path,
+        ],
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    return system.stdout

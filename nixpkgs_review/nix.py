@@ -18,6 +18,7 @@ class Attr:
     blacklisted: bool
     path: Optional[str]
     drv_path: Optional[str]
+    log_url: Optional[str] = field(default=None)
     aliases: List[str] = field(default_factory=lambda: [])
     _path_verified: Optional[bool] = field(init=False, default=None)
 
@@ -147,6 +148,7 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
         sh(command)
     except subprocess.CalledProcessError:
         pass
+
     return attrs
 
 
