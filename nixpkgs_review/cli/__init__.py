@@ -35,9 +35,7 @@ def pr_flags(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
     )
 
     pr_parser.add_argument(
-        "--no-nixpkgs-checkout",
-        action="store_true",
-        default=False,
+        "--no-nixpkgs-checkout", action="store_true", default=False,
         help="Download tarball rather than relying on local nixpkgs checkout",
     )
     pr_parser.add_argument(
@@ -58,7 +56,9 @@ def pr_flags(subparsers: argparse._SubParsersAction) -> argparse.ArgumentParser:
         help="Post the nixpkgs-review results as a PR comment",
     )
     pr_parser.add_argument(
-        "--post-logs", action="store_true", help="Upload build logs to gist.github.com",
+        "--post-logs",
+        action="store_true",
+        help="Upload build logs to gist.github.com",
     )
     pr_parser.set_defaults(func=pr_command)
     return pr_parser
