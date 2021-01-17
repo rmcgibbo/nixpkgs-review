@@ -119,6 +119,7 @@ class Review:
         self.package_regex = package_regexes
         self.skip_packages = skip_packages
         self.skip_packages_regex = skip_packages_regex
+        self._rev: Optional[str] = None
 
     def worktree_dir(self) -> str:
         return str(self.builddir.worktree_dir)
@@ -175,11 +176,14 @@ class Review:
         else:
             self.git_worktree(pr_rev)
 
-    def fetch_pr_tarball(self, commit_sha: str) -> None:
-        url = f"https://github.com/NixOS/nixpkgs/tarball/{commit_sha}"
+        self._rev = pr_rev
+
+    def fetch_pr_tarball(self, pr_rev: str) -> None:
+        url = f"https://github.com/NixOS/nixpkgs/tarball/{pr_rev}"
         cmd = f"curl -L {url} | tar --strip-components 1 -xz --directory {self.worktree_dir()}"
         subprocess.run(cmd, shell=True, check=True)
         os.listdir(self.worktree_dir())
+        self._rev = pr_rev
 
     def build(self, packages: Set[str], args: str) -> List[Attr]:
         packages = filter_packages(
@@ -196,9 +200,9 @@ class Review:
         assert self.use_ofborg_eval
         packages_per_system = self.github_client.get_borg_eval_gist(pr)
         assert packages_per_system is not None
-        commit_sha = os.path.basename(urllib.parse.urlparse(pr["statuses_url"]).path)
+        pr_rev = os.path.basename(urllib.parse.urlparse(pr["statuses_url"]).path)
 
-        self.fetch_pr_tarball(commit_sha)
+        self.fetch_pr_tarball(pr_rev)
         packages = native_packages(packages_per_system)
         return self.build(packages, self.build_args)
 
@@ -245,16 +249,16 @@ class Review:
         os.environ["NIX_PATH"] = path.as_posix()
         if pr:
             os.environ["PR"] = str(pr)
-        report = Report(current_system(), attr)
-        report.print_console(pr)
-        report.write(path, pr)
+        report = Report(current_system(), attr, self._rev)
 
         if pr and post_result and post_logs:
             self.upload_build_logs(attr)
 
+        report.print_console(pr)
+        report.write(path, pr)
+
         if pr and post_result:
-            with open(f"pr-{pr}.md", "w") as f:
-                f.write(report.markdown(pr))
+            self.github_client.comment_issue(pr, report.markdown(pr))
 
         if self.no_shell:
             sys.exit(0 if report.succeeded() else 1)

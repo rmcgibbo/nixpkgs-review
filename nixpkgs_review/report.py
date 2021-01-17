@@ -81,9 +81,10 @@ def write_error_logs(attrs: List[Attr], directory: Path) -> None:
 
 
 class Report:
-    def __init__(self, system: str, attrs: List[Attr]) -> None:
+    def __init__(self, system: str, attrs: List[Attr], pr_rev: Optional[str] = None) -> None:
         self.system = system
         self.attrs = attrs
+        self.pr_rev: Optional[str] = pr_rev
         self.broken: List[Attr] = []
         self.failed: List[Attr] = []
         self.non_existant: List[Attr] = []
@@ -123,7 +124,9 @@ class Report:
         if pr is not None:
             cmd += f" pr {pr}"
 
-        msg = f"Result of `{cmd}` run on {self.system} [1](https://github.com/Mic92/nixpkgs-review)\n"
+        shortcommit = f" at {self.pr_rev[:8]}" if self.pr_rev else ""
+        link = "[1](https://github.com/Mic92/nixpkgs-review)"
+        msg = f"Result of `{cmd}`{shortcommit} run on {self.system} {link}\n"
 
         msg += html_pkgs_section(self.broken, "marked as broken and skipped")
         msg += html_pkgs_section(
