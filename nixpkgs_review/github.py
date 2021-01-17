@@ -1,3 +1,4 @@
+import sys
 import json
 import urllib.parse
 import urllib.request
@@ -52,8 +53,7 @@ class GithubClient:
         "Approve a PR"
         print(f"Approving {pr_url(pr)}")
         return self.post(
-            f"/repos/NixOS/nixpkgs/pulls/{pr}/reviews",
-            data=dict(event="APPROVE"),
+            f"/repos/NixOS/nixpkgs/pulls/{pr}/reviews", data=dict(event="APPROVE"),
         )
 
     def merge_pr(self, pr: int) -> Any:
@@ -96,5 +96,9 @@ class GithubClient:
 
     def upload_gist(self, name: str, content: str) -> Dict[str, Any]:
         data = dict(files={name: {"content": content}}, public=True)
-        resp: Dict[str, Any] = self.post("/gists", data=data)
-        return resp
+        try:
+            resp: Dict[str, Any] = self.post("/gists", data=data)
+            return resp
+        except urllib.error.HTTPError:
+            print(f"ERROR with name={name!r} content={content!r}", file=sys.stderr)
+            raise

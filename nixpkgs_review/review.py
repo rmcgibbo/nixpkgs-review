@@ -49,10 +49,7 @@ def native_packages(packages_per_system: Dict[str, Set[str]]) -> Set[str]:
     return set(packages_per_system[current_system()])
 
 
-def print_packages(
-    names: List[str],
-    msg: str,
-) -> None:
+def print_packages(names: List[str], msg: str,) -> None:
     if len(names) == 0:
         return
     plural = "s" if len(names) > 1 else ""
@@ -270,7 +267,9 @@ class Review:
         for pkg in attr:
             log_content = nix_log(pkg)
             if log_content is not None:
-                gist = self.github_client.upload_gist(name=pkg.name, content=log_content)
+                gist = self.github_client.upload_gist(
+                    name=pkg.name, content=log_content
+                )
                 pkg.log_url = gist["html_url"]
                 gists.append(gist)
             else:
@@ -493,13 +492,7 @@ def nix_log(attr: Attr) -> Optional[str]:
     if attr.drv_path is None:
         return None
     system = subprocess.run(
-        [
-            "nix",
-            "--experimental-features",
-            "nix-command",
-            "log",
-            attr.drv_path,
-        ],
+        ["nix", "--experimental-features", "nix-command", "log", attr.drv_path,],
         stdout=subprocess.PIPE,
         text=True,
     )

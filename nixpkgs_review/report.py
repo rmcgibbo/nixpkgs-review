@@ -30,7 +30,7 @@ def html_pkgs_section(packages: List[Attr], msg: str, what: str = "package") -> 
     res += f"  <summary>{len(packages)} {what}{plural} {msg}:</summary>\n  <ul>\n"
     for pkg in packages:
         if pkg.log_url is not None:
-            res += f"    <li><a href=\"{pkg.log_url}\">{pkg.name}</a></li>"
+            res += f'    <li><a href="{pkg.log_url}">{pkg.name}</a></li>'
         else:
             res += f"    <li>{pkg.name}"
         if len(pkg.aliases) > 0:
@@ -81,7 +81,9 @@ def write_error_logs(attrs: List[Attr], directory: Path) -> None:
 
 
 class Report:
-    def __init__(self, system: str, attrs: List[Attr], pr_rev: Optional[str] = None) -> None:
+    def __init__(
+        self, system: str, attrs: List[Attr], pr_rev: Optional[str] = None
+    ) -> None:
         self.system = system
         self.attrs = attrs
         self.pr_rev: Optional[str] = pr_rev
