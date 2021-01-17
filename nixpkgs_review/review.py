@@ -251,7 +251,7 @@ class Review:
             os.environ["PR"] = str(pr)
         report = Report(current_system(), attr, self._rev)
 
-        if pr and post_result and post_logs:
+        if post_logs:
             self.upload_build_logs(attr)
 
         report.print_console(pr)
