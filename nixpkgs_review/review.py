@@ -269,7 +269,7 @@ class Review:
         gists: List[Optional[Dict[str, Any]]] = []
         for pkg in attr:
             log_content = nix_log(pkg)
-            if log_content is not None:
+            if log_content is not None and len(log_content) > 0:
                 gist = self.github_client.upload_gist(name=pkg.name, content=log_content)
                 pkg.log_url = gist["html_url"]
                 gists.append(gist)
