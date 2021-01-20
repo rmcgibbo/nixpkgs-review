@@ -265,7 +265,7 @@ class Review:
     def upload_build_logs(
         self, attr: List[Attr], pr: Optional[int]
     ) -> List[Optional[Dict[str, Any]]]:
-        description = f"pr={pr} | system = {current_system()}"
+        description = f"pr={pr} | system={current_system()}"
         gists: List[Optional[Dict[str, Any]]] = []
         for pkg in attr:
             log_content = nix_log(pkg)
