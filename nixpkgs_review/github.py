@@ -95,8 +95,8 @@ class GithubClient:
                 return packages_per_system
         return None
 
-    def upload_gist(self, name: str, content: str) -> Dict[str, Any]:
-        data = dict(files={name: {"content": content}}, public=True)
+    def upload_gist(self, name: str, content: str, description: str) -> Dict[str, Any]:
+        data = dict(files={name: {"content": content}}, public=True, description=description)
         try:
             resp: Dict[str, Any] = self.post("/gists", data=data)
             return resp
