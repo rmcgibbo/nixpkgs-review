@@ -497,6 +497,7 @@ def nix_log(attr: Attr) -> Optional[str]:
     system = subprocess.run(
         ["nix", "--experimental-features", "nix-command", "log", attr.drv_path],
         stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
     )
     return system.stdout

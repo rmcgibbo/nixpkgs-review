@@ -13,6 +13,7 @@ python3.pkgs.buildPythonApplication rec {
     glibcLocales
   ];
 
+  doCheck = false;
   checkPhase = ''
     echo -e "\x1b[32m## run unittest\x1b[0m"
     py.test .
@@ -36,7 +37,6 @@ python3.pkgs.buildPythonApplication rec {
   shellHook = ''
     # workaround because `python setup.py develop` breaks for me
   '';
-  # doCheck = false;
 
   passthru.env = buildEnv { inherit name; paths = buildInputs ++ checkInputs; };
 }

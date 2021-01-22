@@ -40,6 +40,19 @@ def html_pkgs_section(packages: List[Attr], msg: str, what: str = "package") -> 
     return res
 
 
+def html_check_reports(check_reports: List[str]) -> str:
+    if len(check_reports) == 0:
+        return ""
+    plural = "s" if len(check_reports) > 1 else ""
+    res = "<details>\n"
+    res += f"  <summary>{len(check_reports)} warning{plural} produced:</summary>\n  <ul>\n"
+    for report in check_reports:
+        res += f"    <li>{report}"
+        res += "</li>\n"
+    res += "  </ul>\n</details>\n"
+    return res
+
+
 class LazyDirectory:
     def __init__(self, path: Path) -> None:
         self.path = path
@@ -91,6 +104,7 @@ class Report:
         self.blacklisted: List[Attr] = []
         self.tests: List[Attr] = []
         self.built: List[Attr] = []
+        self.check_reports: Set[str] = set()
 
         for a in attrs:
             if a.broken:
@@ -105,6 +119,9 @@ class Report:
                 self.failed.append(a)
             else:
                 self.built.append(a)
+
+        for a in attrs:
+            self.check_reports.update(a.check_report)
 
     def built_packages(self) -> List[str]:
         return [a.name for a in self.built]
@@ -137,6 +154,7 @@ class Report:
         msg += html_pkgs_section(self.failed, "failed to build")
         msg += html_pkgs_section(self.tests, "built", what="test")
         msg += html_pkgs_section(self.built, "built")
+        msg += html_check_reports(sorted(self.check_reports))
 
         return msg
 

@@ -19,6 +19,7 @@ class Attr:
     path: Optional[str]
     drv_path: Optional[str]
     log_url: Optional[str] = field(default=None)
+    check_report: List[str] = field(default_factory=lambda: [])
     aliases: List[str] = field(default_factory=lambda: [])
     _path_verified: Optional[bool] = field(init=False, default=None)
 
@@ -149,6 +150,17 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
     except subprocess.CalledProcessError:
         pass
 
+    attrs = postprocess(attrs, nixpkgs=cache_directory / "nixpkgs")
+    return attrs
+
+
+def postprocess(attrs: List[Attr], nixpkgs: Path) -> List[Attr]:
+    """Run the build attributes through nixpkgs-review-checks
+    """
+    for cmd in os.environ.get("NIXPKGS_REVIEW_CHECKS", "").split(":"):
+        encoded = json.dumps([attr.__dict__ for attr in attrs])
+        p = subprocess.run([cmd], input=encoded, stdout=subprocess.PIPE, text=True, check=True, cwd=nixpkgs)
+        attrs = [Attr(**arg) for arg in json.loads(p.stdout)]
     return attrs
 
 
