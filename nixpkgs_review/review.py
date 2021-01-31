@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -49,7 +50,10 @@ def native_packages(packages_per_system: Dict[str, Set[str]]) -> Set[str]:
     return set(packages_per_system[current_system()])
 
 
-def print_packages(names: List[str], msg: str,) -> None:
+def print_packages(
+    names: List[str],
+    msg: str,
+) -> None:
     if len(names) == 0:
         return
     plural = "s" if len(names) > 1 else ""
@@ -255,12 +259,35 @@ class Review:
         report.write(path, pr)
 
         if pr and post_result:
-            self.github_client.comment_issue(pr, report.markdown(pr))
+            if self.pre_github_comment_hook(pr, report):
+                self.github_client.comment_issue(pr, report.markdown(pr))
+            else:
+                print("SKIPPING Github upload because because hook returned false")
 
         if self.no_shell:
             sys.exit(0 if report.succeeded() else 1)
         else:
             nix_shell(report.built_packages(), path)
+
+    def pre_github_comment_hook(self, pr: int, report: Report) -> bool:
+        """This hook allows us to skip upload to github. Right now only
+        the exit status is checked, but if necessary we could also allow
+        this hook to modify the report.
+        """
+        for cmd in os.environ.get("NIXPKGS_REVIEW_PRE_GITHUB_COMMENT_HOOK", "").split(
+            ":"
+        ):
+            encoded = json.dumps(
+                {
+                    "attrs": [attr.__dict__ for attr in report.attrs],
+                    "markdown": report.markdown(pr),
+                    "pr": pr,
+                }
+            )
+            p = subprocess.run([cmd], input=encoded, text=True)
+            if p.returncode != 0:
+                return False
+        return True
 
     def upload_build_logs(
         self, attr: List[Attr], pr: Optional[int]
