@@ -29,7 +29,7 @@ python3.pkgs.buildPythonApplication rec {
     mypy --strict nixpkgs_review
   '';
   makeWrapperArgs = [
-    "--prefix PATH : ${stdenv.lib.makeBinPath [ nixFlakes git curl gnutar ]}"
+    "--prefix PATH : ${stdenv.lib.makeBinPath [ nixFlakes git curl gnutar gzip ]}"
     "--set NIX_SSL_CERT_FILE ${cacert}/etc/ssl/certs/ca-bundle.crt"
     # we don't have any runtime deps but nix-review shells might inject unwanted dependencies
     "--unset PYTHONPATH"
