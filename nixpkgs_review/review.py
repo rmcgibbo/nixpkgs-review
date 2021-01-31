@@ -205,6 +205,9 @@ class Review:
 
         self.fetch_pr_tarball(pr_rev)
         packages = native_packages(packages_per_system)
+
+        os.environ["NIXPKGS_REVIEW_PR"] = str(pr_number)
+        os.environ["NIXPKGS_REVIEW_PR_REVISION"] = pr_rev
         return self.build(packages, self.build_args)
 
     def build_pr(self, pr_number: int) -> List[Attr]:
@@ -237,6 +240,8 @@ class Review:
         self.checkout_pr(base_rev, pr_rev)
 
         packages = native_packages(packages_per_system)
+        os.environ["NIXPKGS_REVIEW_PR"] = str(pr_number)
+        os.environ["NIXPKGS_REVIEW_PR_REVISION"] = pr_rev
         return self.build(packages, self.build_args)
 
     def start_review(
