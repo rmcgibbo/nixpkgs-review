@@ -4,6 +4,7 @@ import shlex
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
+from sys import platform
 from tempfile import NamedTemporaryFile
 from typing import Any, Dict, List, Optional, Set
 
@@ -43,13 +44,18 @@ class Attr:
 def nix_shell(attrs: List[str], cache_directory: Path) -> None:
     shell = cache_directory.joinpath("shell.nix")
     write_shell_expression(shell, attrs)
-    sh(["nix-shell", str(shell)], cwd=cache_directory)
+    sh(["nix-shell", str(shell)], cwd=cache_directory, check=False)
 
 
 def _nix_eval_filter(json: Dict[str, Any]) -> List[Attr]:
     # workaround https://github.com/NixOS/ofborg/issues/269
     blacklist = set(
-        ["tests.nixos-functions.nixos-test", "tests.nixos-functions.nixosTest-test"]
+        [
+            "tests.nixos-functions.nixos-test",
+            "tests.nixos-functions.nixosTest-test",
+            "tests.writers",
+            "appimage-run-tests",
+        ]
     )
     attr_by_path: Dict[str, Attr] = {}
     broken = []
@@ -137,10 +143,17 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
         "build",
         "--no-link",
         "--keep-going",
-        # only matters for single-user nix and trusted users
-        "--option",
-        "build-use-sandbox",
-        "relaxed",
+    ]
+
+    if platform == "linux":
+        command += [
+            # only matters for single-user nix and trusted users
+            "--option",
+            "build-use-sandbox",
+            "relaxed",
+        ]
+
+    command += [
         "-f",
         str(build),
     ] + shlex.split(args)
@@ -169,15 +182,22 @@ def write_shell_expression(filename: Path, attrs: List[str]) -> None:
         f.write(
             """{ pkgs ? import ./nixpkgs {} }:
 with pkgs;
-stdenv.mkDerivation {
-  name = "env";
-  buildInputs = [
+let
+  paths = [
 """
         )
-        f.write("\n".join(f"    {escape_attr(a)}" for a in attrs))
+        f.write("\n".join(f"        {escape_attr(a)}" for a in attrs))
         f.write(
             """
   ];
+  env = buildEnv {
+    name = "env";
+    inherit paths;
+    ignoreCollisions = true;
+  };
+in stdenv.mkDerivation rec {
+  name = "review-shell";
+  buildInputs = if builtins.length paths > 50 then [ env ] else paths;
   unpackPhase = ":";
   installPhase = "touch $out";
 }
