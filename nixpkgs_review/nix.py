@@ -157,7 +157,7 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
 def postprocess(attrs: List[Attr], nixpkgs: Path) -> List[Attr]:
     """Run the build attributes through nixpkgs-review-checks
     """
-    for cmd in os.environ.get("NIXPKGS_REVIEW_CHECKS", "").split(":"):
+    for cmd in (cmd for cmd in os.environ.get("NIXPKGS_REVIEW_CHECKS", "").split(":") if cmd):
         encoded = json.dumps([attr.__dict__ for attr in attrs])
         p = subprocess.run([cmd], input=encoded, stdout=subprocess.PIPE, text=True, check=True, cwd=nixpkgs)
         attrs = [Attr(**arg) for arg in json.loads(p.stdout)]
