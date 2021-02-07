@@ -45,7 +45,7 @@ def html_check_reports(check_reports: List[str]) -> str:
         return ""
     plural = "s" if len(check_reports) > 1 else ""
     res = "<details>\n"
-    res += f"  <summary>{len(check_reports)} warning{plural} produced:</summary>\n  <ul>\n"
+    res += f"  <summary>{len(check_reports)} suggestion{plural}:</summary>\n  <ul>\n"
     for report in check_reports:
         res += f"    <li>{report}"
         res += "</li>\n"
