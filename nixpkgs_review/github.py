@@ -31,7 +31,15 @@ class GithubClient:
             body = json.dumps(data).encode("ascii")
 
         req = urllib.request.Request(url, headers=headers, method=method, data=body)
-        resp = urllib.request.urlopen(req)
+        try:
+            resp = urllib.request.urlopen(req)
+        except urllib.error.HTTPError as e:
+            print(f"Code: {e.code}", file=sys.stderr)
+            print(f"Reason: {e.reason}", file=sys.stderr)
+            print(f"Headers: {e.headers}", file=sys.stderr)
+            print(f"Data: {data}", file=sys.stderr)
+            raise
+
         return json.loads(resp.read())
 
     def get(self, path: str) -> Any:
