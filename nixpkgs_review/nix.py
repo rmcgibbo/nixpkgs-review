@@ -17,6 +17,7 @@ class Attr:
     exists: bool
     broken: bool
     blacklisted: bool
+    skipped: bool
     path: Optional[str]
     drv_path: Optional[str]
     log_url: Optional[str] = field(default=None)
@@ -65,6 +66,7 @@ def _nix_eval_filter(json: Dict[str, Any]) -> List[Attr]:
             exists=props["exists"],
             broken=props["broken"],
             blacklisted=name in blacklist,
+            skipped=False,
             path=props["path"],
             drv_path=props["drvPath"],
         )
@@ -125,9 +127,10 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
         return []
 
     attrs = nix_eval(attr_names)
+    attrs = pre_build_filter(attrs, nixpkgs=cache_directory / "nixpkgs")
     filtered = []
     for attr in attrs:
-        if not (attr.broken or attr.blacklisted):
+        if not (attr.broken or attr.blacklisted or attr.skipped):
             filtered.append(attr.name)
 
     if len(filtered) == 0:
@@ -167,12 +170,20 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
     return attrs
 
 
+def pre_build_filter(attrs: List[Attr], nixpkgs: Path) -> List[Attr]:
+    for cmd in (cmd for cmd in os.environ.get("NIXPKGS_REVIEW_PRE_BUILD_FILTER", "").split(":") if cmd):
+        encoded = json.dumps([attr.__dict__ for attr in attrs])
+        p = sh([cmd], input=encoded, stdout=subprocess.PIPE, cwd=nixpkgs)
+        attrs = [Attr(**arg) for arg in json.loads(p.stdout)]
+    return attrs
+
+
 def postprocess(attrs: List[Attr], nixpkgs: Path) -> List[Attr]:
     """Run the build attributes through nixpkgs-review-checks
     """
     for cmd in (cmd for cmd in os.environ.get("NIXPKGS_REVIEW_CHECKS", "").split(":") if cmd):
         encoded = json.dumps([attr.__dict__ for attr in attrs])
-        p = subprocess.run([cmd], input=encoded, stdout=subprocess.PIPE, text=True, check=True, cwd=nixpkgs)
+        p = sh([cmd], input=encoded, stdout=subprocess.PIPE, cwd=nixpkgs)
         attrs = [Attr(**arg) for arg in json.loads(p.stdout)]
     return attrs
 
