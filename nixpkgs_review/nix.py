@@ -3,11 +3,13 @@ import os
 import shlex
 import subprocess
 from dataclasses import dataclass, field
+from datetime import timedelta
 from pathlib import Path
 from sys import platform
 from tempfile import NamedTemporaryFile
 from typing import Any, Dict, List, Optional, Set
 
+from statx import stat, stat_result
 from .utils import ROOT, escape_attr, info, sh, warn
 
 
@@ -24,6 +26,7 @@ class Attr:
     check_report: List[str] = field(default_factory=lambda: [])
     aliases: List[str] = field(default_factory=lambda: [])
     _path_verified: Optional[bool] = field(init=False, default=None)
+    _err: Optional[str] = field(init=False, default=None)
 
     def was_build(self) -> bool:
         if self.path is None:
@@ -40,6 +43,45 @@ class Attr:
 
     def is_test(self) -> bool:
         return self.name.startswith("nixosTests")
+
+    def log(self) -> Optional[str]:
+        def get_log(path) -> str:
+            system = subprocess.run(
+                ["nix", "--experimental-features", "nix-command", "log", path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            return system.stdout
+
+        if self.drv_path is None:
+            return None
+
+        if not self.was_build() and self._err is not None:
+            return self._err
+
+        return get_log(self.drv_path) or get_log(self.path)
+
+    def log_path(self) -> Optional[str]:
+        if self.drv_path is None:
+            return None
+        base = os.path.basename(self.drv_path)
+        prefix = "/nix/var/log/nix/drvs/"
+        full = os.path.join(prefix, base[:2], base[2:] + ".bz2")
+        if os.path.exists(full):
+            return full
+        return None
+
+    def build_time(self) -> Optional[timedelta]:
+        log_path = self.log_path()
+        if log_path is None:
+            return None
+        result = stat(log_path)
+        assert isinstance(result, stat_result)
+        return timedelta(
+            microseconds=(result.st_mtime_ns - result.st_birthtime_ns) / 1000
+        )
+
 
 
 def nix_shell(attrs: List[str], cache_directory: Path) -> None:
@@ -162,9 +204,21 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
     ] + shlex.split(args)
 
     try:
-        sh(command)
-    except subprocess.CalledProcessError:
-        pass
+        proc = sh(command, stderr=subprocess.PIPE)
+        stderr = proc.stderr
+    except subprocess.CalledProcessError as e:
+        stderr = e.stderr
+
+    has_failed_dependencies = []
+    for line in stderr.splitlines():
+        if "dependencies couldn't be built" in line:
+            has_failed_dependencies.append(next(item for item in line.split() if "/nix/store" in item).lstrip("'").rstrip(":'"))
+
+    drv_path_to_attr = {a.drv_path: a for a in attrs}
+    for drv_path in has_failed_dependencies:
+        if drv_path in drv_path_to_attr:
+            attr = drv_path_to_attr[drv_path]
+            attr._err = stderr
 
     attrs = postprocess(attrs, nixpkgs=cache_directory / "nixpkgs")
     return attrs

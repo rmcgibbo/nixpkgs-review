@@ -81,16 +81,7 @@ def write_error_logs(attrs: List[Attr], directory: Path) -> None:
 
         if attr.drv_path is not None:
             with open(logs.ensure().joinpath(attr.name + ".log"), "w+") as f:
-                subprocess.run(
-                    [
-                        "nix",
-                        "--experimental-features",
-                        "nix-command",
-                        "log",
-                        attr.drv_path,
-                    ],
-                    stdout=f,
-                )
+                f.write(attr.log())
 
 
 class Report:

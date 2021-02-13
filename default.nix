@@ -1,10 +1,26 @@
 { pkgs ?  import <nixpkgs> {} }:
 
 with pkgs;
+let
+  statx = import (pkgs.fetchFromGitHub {
+    owner = "rmcgibbo";
+    repo = "statx";
+    rev = "ba90b5dd37fb1f5f01465015564e0a0aeb2cb5c3";
+    sha256 = "0b0jrvas4rk4qvqn0pmw1v1ykzid6pzacrqmwkpn52azvmf904sr";
+  }) { pkgs = pkgs; pythonPackages = python3.pkgs; };
+in
 python3.pkgs.buildPythonApplication rec {
   name = "nixpkgs-review";
   src = ./.;
   buildInputs = [ makeWrapper ];
+  
+  propagatedBuildInputs = [
+    statx
+    python3.pkgs.humanize
+    # humanize fails to declare its dependency on septools correctly
+    # https://github.com/NixOS/nixpkgs/pull/113060
+    python3.pkgs.setuptools
+  ];
   checkInputs = [
     mypy
     python3.pkgs.black
@@ -31,8 +47,6 @@ python3.pkgs.buildPythonApplication rec {
   makeWrapperArgs = [
     "--prefix PATH : ${stdenv.lib.makeBinPath [ nixFlakes git curl gnutar gzip ]}"
     "--set NIX_SSL_CERT_FILE ${cacert}/etc/ssl/certs/ca-bundle.crt"
-    # we don't have any runtime deps but nix-review shells might inject unwanted dependencies
-    "--unset PYTHONPATH"
   ];
   shellHook = ''
     # workaround because `python setup.py develop` breaks for me

@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, IO, Dict, List, Optional, Pattern, Set, Tuple
+from humanize import naturaldelta
 
 from .builddir import Builddir
 from .github import GithubClient
@@ -212,11 +213,11 @@ class Review:
 
     def build_pr(self, pr_number: int) -> List[Attr]:
         pr = self.github_client.pull_request(pr_number)
-
         if self.use_ofborg_eval:
             packages_per_system = self.github_client.get_borg_eval_gist(pr)
         else:
             packages_per_system = None
+
         merge_rev, pr_rev = fetch_refs(
             "https://github.com/NixOS/nixpkgs",
             pr["base"]["ref"],
@@ -256,7 +257,7 @@ class Review:
         if pr:
             os.environ["PR"] = str(pr)
         report = Report(current_system(), attr, self._rev)
-
+        
         if post_logs:
             self.upload_build_logs(attr, pr)
 
@@ -297,10 +298,15 @@ class Review:
     def upload_build_logs(
         self, attr: List[Attr], pr: Optional[int]
     ) -> List[Optional[Dict[str, Any]]]:
-        description = f"pr={pr} | system={current_system()}"
         gists: List[Optional[Dict[str, Any]]] = []
         for pkg in attr:
-            log_content = nix_log(pkg)
+            log_content = pkg.log()
+            build_time = pkg.build_time()
+            description = f"system: {current_system()}"
+            if build_time is not None:
+                description += f" | build_time: {naturaldelta(build_time)}"
+            description += " | https://github.com/NixOS/nixpkgs/pull/{pr}"
+
             if log_content is not None and len(log_content) > 0:
                 gist = self.github_client.upload_gist(
                     name=pkg.name, content=log_content, description=description
@@ -521,15 +527,3 @@ def review_local_revision(
             package_regexes=args.package_regex,
         )
         review.review_commit(builddir.path, args.branch, args.remote, commit, staged)
-
-
-def nix_log(attr: Attr) -> Optional[str]:
-    if attr.drv_path is None:
-        return None
-    system = subprocess.run(
-        ["nix", "--experimental-features", "nix-command", "log", attr.drv_path],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    return system.stdout
