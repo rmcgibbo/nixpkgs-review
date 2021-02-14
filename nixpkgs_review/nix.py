@@ -7,9 +7,10 @@ from datetime import timedelta
 from pathlib import Path
 from sys import platform
 from tempfile import NamedTemporaryFile
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from statx import stat, stat_result
+
 from .utils import ROOT, escape_attr, info, sh, warn
 
 
@@ -81,7 +82,6 @@ class Attr:
         return timedelta(
             microseconds=(result.st_mtime_ns - result.st_birthtime_ns) / 1000
         )
-
 
 
 def nix_shell(attrs: List[str], cache_directory: Path) -> None:
@@ -163,6 +163,49 @@ def nix_eval(attrs: Set[str]) -> List[Attr]:
             os.unlink(attr_json.name)
 
 
+def nix_build_dry(filename: str) -> Tuple[List[str], List[str]]:
+
+    # Turn filename into a drv_path
+    proc1 = subprocess.run(
+        ["nix-instantiate", filename],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+        text=True,
+    )
+
+    proc2 = subprocess.run(
+        ["nix-store", "--realize", "--dry-run"] + proc1.stdout.splitlines(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=True,
+    )
+    lines = proc2.stderr.splitlines()
+    to_fetch = []
+    to_build = []
+    ignore = []
+
+    for line in lines:
+        line = line.strip()
+        if "this path will be fetched" in line:
+            cur = to_fetch
+        elif "paths will be fetched" in line:
+            cur = to_fetch
+        elif "derivations will be built" in line:
+            cur = to_build
+        elif "derivation will be built" in line:
+            cur = to_build
+        elif "don't know how to build these paths" in line:
+            cur = ignore
+        elif line.startswith("/nix/store"):
+            cur.append(line)
+        elif line != "":
+            raise RuntimeError(f"dry-run parsing failed: '{line}'")
+
+    return (to_build, to_fetch)
+
+
 def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[Attr]:
     if not attr_names:
         info("Nothing to be built.")
@@ -180,6 +223,7 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
 
     build = cache_directory.joinpath("build.nix")
     write_shell_expression(build, filtered)
+    drvs_to_build, _drvs_to_fetch = nix_build_dry(build)
 
     command = [
         "nix",
@@ -212,7 +256,11 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
     has_failed_dependencies = []
     for line in stderr.splitlines():
         if "dependencies couldn't be built" in line:
-            has_failed_dependencies.append(next(item for item in line.split() if "/nix/store" in item).lstrip("'").rstrip(":'"))
+            has_failed_dependencies.append(
+                next(item for item in line.split() if "/nix/store" in item)
+                .lstrip("'")
+                .rstrip(":'")
+            )
 
     drv_path_to_attr = {a.drv_path: a for a in attrs}
     for drv_path in has_failed_dependencies:
@@ -220,23 +268,39 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
             attr = drv_path_to_attr[drv_path]
             attr._err = stderr
 
-    attrs = postprocess(attrs, nixpkgs=cache_directory / "nixpkgs")
+    attrs = postprocess(attrs, drvs_to_build, nixpkgs=cache_directory / "nixpkgs")
     return attrs
 
 
 def pre_build_filter(attrs: List[Attr], nixpkgs: Path) -> List[Attr]:
-    for cmd in (cmd for cmd in os.environ.get("NIXPKGS_REVIEW_PRE_BUILD_FILTER", "").split(":") if cmd):
-        encoded = json.dumps([attr.__dict__ for attr in attrs])
+    for cmd in (
+        cmd
+        for cmd in os.environ.get("NIXPKGS_REVIEW_PRE_BUILD_FILTER", "").split(":")
+        if cmd
+    ):
+        encoded = json.dumps(
+            {
+                "attrs": [attr.__dict__ for attr in attrs],
+            }
+        )
         p = sh([cmd], input=encoded, stdout=subprocess.PIPE, cwd=nixpkgs)
         attrs = [Attr(**arg) for arg in json.loads(p.stdout)]
     return attrs
 
 
-def postprocess(attrs: List[Attr], nixpkgs: Path) -> List[Attr]:
-    """Run the build attributes through nixpkgs-review-checks
-    """
-    for cmd in (cmd for cmd in os.environ.get("NIXPKGS_REVIEW_CHECKS", "").split(":") if cmd):
-        encoded = json.dumps([attr.__dict__ for attr in attrs])
+def postprocess(
+    attrs: List[Attr], drvpaths_built: List[str], nixpkgs: Path
+) -> List[Attr]:
+    """Run the build attributes through nixpkgs-review-checks"""
+    for cmd in (
+        cmd for cmd in os.environ.get("NIXPKGS_REVIEW_CHECKS", "").split(":") if cmd
+    ):
+        encoded = json.dumps(
+            {
+                "attrs": [attr.__dict__ for attr in attrs],
+                "drvpaths_built": drvpaths_built,
+            }
+        )
         p = sh([cmd], input=encoded, stdout=subprocess.PIPE, cwd=nixpkgs)
         attrs = [Attr(**arg) for arg in json.loads(p.stdout)]
     return attrs
