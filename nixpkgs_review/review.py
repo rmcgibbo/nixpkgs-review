@@ -305,7 +305,7 @@ class Review:
             description = f"system: {current_system()}"
             if build_time is not None:
                 description += f" | build_time: {naturaldelta(build_time)}"
-            description += " | https://github.com/NixOS/nixpkgs/pull/{pr}"
+            description += f" | https://github.com/NixOS/nixpkgs/pull/{pr}"
 
             if log_content is not None and len(log_content) > 0:
                 gist = self.github_client.upload_gist(
