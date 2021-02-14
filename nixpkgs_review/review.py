@@ -166,6 +166,9 @@ class Review:
         changed_pkgs, removed_pkgs = differences(base_packages, merged_packages)
         changed_attrs = set(p.attr_path for p in changed_pkgs)
         print_updates(changed_pkgs, removed_pkgs)
+
+        os.environ["NIXPKGS_REVIEW_PR"] = ""
+        os.environ["NIXPKGS_REVIEW_PR_REVISION"] = reviewed_commit or ""
         return self.build(changed_attrs, self.build_args)
 
     def git_worktree(self, commit: str) -> None:
@@ -257,7 +260,7 @@ class Review:
         if pr:
             os.environ["PR"] = str(pr)
         report = Report(current_system(), attr, self._rev)
-        
+
         if post_logs:
             self.upload_build_logs(attr, pr)
 

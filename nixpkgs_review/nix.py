@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import shlex
 import subprocess
 from dataclasses import dataclass, field
@@ -26,8 +27,9 @@ class Attr:
     log_url: Optional[str] = field(default=None)
     check_report: List[str] = field(default_factory=lambda: [])
     aliases: List[str] = field(default_factory=lambda: [])
+    timed_out: bool = field(default=False)
+    build_err_msg: Optional[str] = field(default=None)
     _path_verified: Optional[bool] = field(init=False, default=None)
-    _err: Optional[str] = field(init=False, default=None)
 
     def was_build(self) -> bool:
         if self.path is None:
@@ -53,15 +55,16 @@ class Attr:
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            return system.stdout
+            return strip_ansi_colors(system.stdout)
 
         if self.drv_path is None:
             return None
 
-        if not self.was_build() and self._err is not None:
-            return self._err
+        value = get_log(self.drv_path) or get_log(self.path)
+        if self.build_err_msg is not None:
+            value = "\n".join([value, self.build_err_msg])
 
-        return get_log(self.drv_path) or get_log(self.path)
+        return value
 
     def log_path(self) -> Optional[str]:
         if self.drv_path is None:
@@ -254,6 +257,7 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
         stderr = e.stderr
 
     has_failed_dependencies = []
+    has_timeout = {}
     for line in stderr.splitlines():
         if "dependencies couldn't be built" in line:
             has_failed_dependencies.append(
@@ -261,12 +265,25 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
                 .lstrip("'")
                 .rstrip(":'")
             )
+        if "timed out after" in line:
+            drv = (
+                next(item for item in line.split() if "/nix/store" in item)
+                .lstrip("'")
+                .rstrip("'")
+            )
+            has_timeout[drv] = line
 
     drv_path_to_attr = {a.drv_path: a for a in attrs}
     for drv_path in has_failed_dependencies:
         if drv_path in drv_path_to_attr:
             attr = drv_path_to_attr[drv_path]
-            attr._err = stderr
+            attr.build_err_msg = stderr
+
+    for drv_path in has_timeout.keys():
+        if drv_path in drv_path_to_attr:
+            attr = drv_path_to_attr[drv_path]
+            attr.build_err_msg = has_timeout[drv_path]
+            attr.timed_out = True
 
     attrs = postprocess(attrs, drvs_to_build, nixpkgs=cache_directory / "nixpkgs")
     return attrs
@@ -332,3 +349,23 @@ in stdenv.mkDerivation rec {
 }
 """
         )
+
+
+def strip_ansi_colors(s: str) -> str:
+    # https://stackoverflow.com/a/14693789/1079728
+    # 7-bit C1 ANSI sequences
+    ansi_escape = re.compile(
+        r"""
+        \x1B  # ESC
+        (?:   # 7-bit C1 Fe (except CSI)
+            [@-Z\\-_]
+        |     # or [ for CSI, followed by a control sequence
+            \[
+            [0-?]*  # Parameter bytes
+            [ -/]*  # Intermediate bytes
+            [@-~]   # Final byte
+        )
+    """,
+        re.VERBOSE,
+    )
+    return ansi_escape.sub("", s)
