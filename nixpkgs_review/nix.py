@@ -166,7 +166,7 @@ def nix_eval(attrs: Set[str]) -> List[Attr]:
             os.unlink(attr_json.name)
 
 
-def nix_build_dry(filename: str) -> Tuple[List[str], List[str]]:
+def nix_build_dry(filename: Path) -> Tuple[List[str], List[str]]:
 
     # Turn filename into a drv_path
     proc1 = subprocess.run(

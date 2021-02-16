@@ -6,9 +6,12 @@ import urllib.request
 from collections import defaultdict
 from typing import Any, DefaultDict, Dict, Optional, Set
 
+OWNER = "NixOS"
+REPO = "nixpkgs"
+
 
 def pr_url(pr: int) -> str:
-    return f"https://github.com/NixOS/nixpkgs/pull/{pr}"
+    return f"https://github.com/{OWNER}/{REPO}/pull/{pr}"
 
 
 class GithubClient:
@@ -34,6 +37,7 @@ class GithubClient:
         try:
             resp = urllib.request.urlopen(req)
         except urllib.error.HTTPError as e:
+            print(f"Url: {url}", file=sys.stderr)
             print(f"Code: {e.code}", file=sys.stderr)
             print(f"Reason: {e.reason}", file=sys.stderr)
             print(f"Headers: {e.headers}", file=sys.stderr)
@@ -51,24 +55,43 @@ class GithubClient:
     def put(self, path: str) -> Any:
         return self._request(path, "PUT")
 
+    def patch(self, path: str, data: Dict[str, Any]) -> Any:
+        return self._request(path, "PATCH", data)
+
     def comment_issue(self, pr: int, msg: str) -> Any:
         "Post a comment on a PR with nixpkgs-review report"
         print(f"Posting result comment on {pr_url(pr)}")
         return self.post(
-            f"/repos/NixOS/nixpkgs/issues/{pr}/comments", data=dict(body=msg)
+            f"/repos/{OWNER}/{REPO}/issues/{pr}/comments", data=dict(body=msg)
         )
+
+    def comment_or_update_prior_comment_issue(self, pr: int, msg: str) -> Any:
+        NEEDLE = "[1](https://github.com/Mic92/nixpkgs-review)"
+        user = self.get("/user")
+
+        my_prev_comment: Optional[Dict] = None
+        for comment in self.get(f"/repos/{OWNER}/{REPO}/issues/{pr}/comments")[::-1]:
+            if comment["user"]["login"] == user["login"] and NEEDLE in comment["body"]:
+                my_prev_comment = comment
+
+        if my_prev_comment is not None:
+            id = my_prev_comment["id"]
+            new_msg = my_prev_comment["body"] + "\n\n--------\n\n" + msg
+            return self.patch(f"/repos/{OWNER}/{REPO}/issues/comments/{id}", data=dict(body=new_msg))
+        return self.comment_issue(pr, msg)
+
 
     def approve_pr(self, pr: int) -> Any:
         "Approve a PR"
         print(f"Approving {pr_url(pr)}")
         return self.post(
-            f"/repos/NixOS/nixpkgs/pulls/{pr}/reviews", data=dict(event="APPROVE"),
+            f"/repos/{OWNER}/{REPO}/pulls/{pr}/reviews", data=dict(event="APPROVE"),
         )
 
     def merge_pr(self, pr: int) -> Any:
-        "Merge a PR. Requires maintainer access to NixPkgs"
+        "Merge a PR. Requires maintainer access to nixpkgs"
         print(f"Merging {pr_url(pr)}")
-        return self.put(f"/repos/NixOS/nixpkgs/pulls/{pr}/merge")
+        return self.put(f"/repos/{OWNER}/{REPO}/pulls/{pr}/merge")
 
     def graphql(self, query: str) -> Dict[str, Any]:
         resp = self.post("/graphql", data=dict(query=query))
@@ -79,7 +102,7 @@ class GithubClient:
 
     def pull_request(self, number: int) -> Any:
         "Get a pull request"
-        return self.get(f"repos/NixOS/nixpkgs/pulls/{number}")
+        return self.get(f"repos/{OWNER}/{REPO}/pulls/{number}")
 
     def get_borg_eval_gist(self, pr: Dict[str, Any]) -> Optional[Dict[str, Set[str]]]:
         packages_per_system: DefaultDict[str, Set[str]] = defaultdict(set)

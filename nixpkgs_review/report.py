@@ -1,7 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, List, Optional, Set
 
 from .nix import Attr
 from .utils import info, link, warn

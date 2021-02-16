@@ -269,7 +269,7 @@ class Review:
 
         if pr and post_result:
             if self.pre_github_comment_hook(pr, report):
-                self.github_client.comment_issue(pr, report.markdown(pr))
+                self.github_client.comment_or_update_prior_comment_issue(pr, report.markdown(pr))
             else:
                 print("SKIPPING Github upload because because hook returned false")
 
