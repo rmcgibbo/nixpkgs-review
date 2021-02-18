@@ -141,7 +141,6 @@ class Report:
             self.non_existant,
             "present in ofBorgs evaluation, but not found in the checkout",
         )
-        msg += html_pkgs_section(self.blacklisted, "blacklisted")
         msg += html_pkgs_section(self.failed, "failed to build")
         msg += html_pkgs_section(self.tests, "built", what="test")
         msg += html_pkgs_section(self.built, "built")
