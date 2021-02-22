@@ -237,14 +237,6 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
         "--keep-going",
     ]
 
-    if platform == "linux":
-        command += [
-            # only matters for single-user nix and trusted users
-            "--option",
-            "build-use-sandbox",
-            "relaxed",
-        ]
-
     command += [
         "-f",
         str(build),
