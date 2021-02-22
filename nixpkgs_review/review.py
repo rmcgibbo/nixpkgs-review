@@ -3,7 +3,9 @@ import json
 import os
 import subprocess
 import sys
+import traceback
 import urllib.parse
+import urllib.error
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from enum import Enum
@@ -312,10 +314,15 @@ class Review:
             description += f" | https://github.com/NixOS/nixpkgs/pull/{pr}"
 
             if log_content is not None and len(log_content) > 0:
-                gist = self.github_client.upload_gist(
-                    name=pkg.name, content=log_content, description=description
-                )
-                pkg.log_url = gist["html_url"]
+                try:
+                    gist = self.github_client.upload_gist(
+                        name=pkg.name, content=log_content, description=description
+                    )
+                    pkg.log_url = gist["html_url"]
+                except urllib.error.HTTPError:
+                    traceback.print_exc(file=sys.stderr)
+                    gist = None
+
                 gists.append(gist)
             else:
                 gists.append(None)
