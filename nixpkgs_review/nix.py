@@ -3,6 +3,7 @@ import os
 import re
 import shlex
 import subprocess
+import time
 from dataclasses import dataclass, field
 from datetime import timedelta
 from pathlib import Path
@@ -242,11 +243,15 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
         str(build),
     ] + shlex.split(args)
 
+    nix_build_before = time.time()
+
     try:
         proc = sh(command, stderr=subprocess.PIPE)
         stderr = proc.stderr
     except subprocess.CalledProcessError as e:
         stderr = e.stderr
+
+    print(f"Nix build time: {time.time() - nix_build_before:.1f} sec")
 
     has_failed_dependencies = []
     has_timeout = {}
