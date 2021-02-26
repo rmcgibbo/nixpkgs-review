@@ -36,6 +36,9 @@ class Attr:
         if self.path is None:
             return False
 
+        if self.skipped:
+            return False
+
         if self._path_verified is not None:
             return self._path_verified
 
