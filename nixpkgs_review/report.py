@@ -65,25 +65,6 @@ class LazyDirectory:
         return self.path
 
 
-def write_error_logs(attrs: List[Attr], directory: Path) -> None:
-    logs = LazyDirectory(directory.joinpath("logs"))
-    results = LazyDirectory(directory.joinpath("results"))
-    failed_results = LazyDirectory(directory.joinpath("failed_results"))
-    for attr in attrs:
-        if attr.path is not None and os.path.exists(attr.path):
-            if attr.was_build():
-                symlink_source = results.ensure().joinpath(attr.name)
-            else:
-                symlink_source = failed_results.ensure().joinpath(attr.name)
-            if os.path.lexists(symlink_source):
-                symlink_source.unlink()
-            symlink_source.symlink_to(attr.path)
-
-        if attr.drv_path is not None:
-            with open(logs.ensure().joinpath(attr.name + ".log"), "w+") as f:
-                f.write(attr.log())
-
-
 class Report:
     def __init__(self, system: str, attrs: List[Attr], pr_rev: Optional[str] = None) -> None:
         self.system = system
@@ -120,8 +101,6 @@ class Report:
     def write(self, directory: Path, pr: Optional[int]) -> None:
         with open(directory.joinpath("report.md"), "w+") as f:
             f.write(self.markdown(pr))
-
-        write_error_logs(self.attrs, directory)
 
     def succeeded(self) -> bool:
         """Whether the report is considered a success or a failure"""
