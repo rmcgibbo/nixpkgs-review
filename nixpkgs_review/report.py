@@ -12,30 +12,38 @@ def print_number(
     msg: str,
     what: str = "package",
     log: Callable[[str], None] = warn,
+    show: bool = True,
 ) -> None:
     if len(packages) == 0:
         return
     plural = "s" if len(packages) > 1 else ""
     names = (a.name for a in packages)
     log(f"{len(packages)} {what}{plural} {msg}:")
-    log(" ".join(names))
+    if show:
+        log(" ".join(names))
     log("")
 
 
-def html_pkgs_section(packages: List[Attr], msg: str, what: str = "package") -> str:
+def html_pkgs_section(
+    packages: List[Attr],
+    msg: str,
+    what: str = "package",
+    show: bool = True
+) -> str:
     if len(packages) == 0:
         return ""
     plural = "s" if len(packages) > 1 else ""
     res = "<details>\n"
     res += f"  <summary>{len(packages)} {what}{plural} {msg}:</summary>\n  <ul>\n"
-    for pkg in packages:
-        if pkg.log_url is not None:
-            res += f"    <li><a href=\"{pkg.log_url}\">{pkg.name}</a></li>"
-        else:
-            res += f"    <li>{pkg.name}"
-        if len(pkg.aliases) > 0:
-            res += f" ({' ,'.join(pkg.aliases)})"
-        res += "</li>\n"
+    if show:
+        for pkg in packages:
+            if pkg.log_url is not None:
+                res += f"    <li><a href=\"{pkg.log_url}\">{pkg.name}</a></li>"
+            else:
+                res += f"    <li>{pkg.name}"
+            if len(pkg.aliases) > 0:
+                res += f" ({' ,'.join(pkg.aliases)})"
+            res += "</li>\n"
     res += "  </ul>\n</details>\n"
     return res
 
@@ -124,6 +132,7 @@ class Report:
             "present in ofBorgs evaluation, but not found in the checkout",
         )
         msg += html_pkgs_section(self.failed, "failed to build")
+        msg += html_pkgs_section(self.skipped, "skipped", show=False)
         msg += html_pkgs_section(self.tests, "built", what="test")
         msg += html_pkgs_section(self.built, "built")
         msg += html_check_reports(sorted(self.check_reports))
@@ -141,6 +150,7 @@ class Report:
             "present in ofBorgs evaluation, but not found in the checkout",
         )
         print_number(self.blacklisted, "blacklisted")
+        print_number(self.skipped, "skipped", show=False)
         print_number(self.failed, "failed to build")
         print_number(self.tests, "built", what="tests", log=print)
         print_number(self.built, "built", log=print)
