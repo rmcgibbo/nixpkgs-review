@@ -70,6 +70,7 @@ class Report:
         self.system = system
         self.attrs = attrs
         self.pr_rev: Optional[str] = pr_rev
+        self.skipped: List[attr] = []
         self.broken: List[Attr] = []
         self.failed: List[Attr] = []
         self.non_existant: List[Attr] = []
@@ -83,6 +84,8 @@ class Report:
                 self.broken.append(a)
             elif a.blacklisted:
                 self.blacklisted.append(a)
+            elif a.skipped:
+                self.skipped.append(a)
             elif not a.exists:
                 self.non_existant.append(a)
             elif a.name.startswith("nixosTests."):
