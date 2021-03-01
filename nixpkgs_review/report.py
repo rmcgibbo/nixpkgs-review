@@ -80,6 +80,7 @@ class Report:
         self.pr_rev: Optional[str] = pr_rev
         self.skipped: List[attr] = []
         self.broken: List[Attr] = []
+        self.timed_out: List[Attr] = []
         self.failed: List[Attr] = []
         self.non_existant: List[Attr] = []
         self.blacklisted: List[Attr] = []
@@ -94,6 +95,8 @@ class Report:
                 self.blacklisted.append(a)
             elif a.skipped:
                 self.skipped.append(a)
+            elif a.timed_out:
+                self.timed_out.append(a)
             elif not a.exists:
                 self.non_existant.append(a)
             elif a.name.startswith("nixosTests."):
@@ -133,6 +136,7 @@ class Report:
         )
         msg += html_pkgs_section(self.failed, "failed to build")
         msg += html_pkgs_section(self.skipped, "skipped", show=False)
+        msg += html_pkgs_section(self.timed_out, "timed out")
         msg += html_pkgs_section(self.tests, "built", what="test")
         msg += html_pkgs_section(self.built, "built")
         msg += html_check_reports(sorted(self.check_reports))
@@ -151,6 +155,7 @@ class Report:
         )
         print_number(self.blacklisted, "blacklisted")
         print_number(self.skipped, "skipped", show=False)
+        print_number(self.timed_out, "timed out", show=True)
         print_number(self.failed, "failed to build")
         print_number(self.tests, "built", what="tests", log=print)
         print_number(self.built, "built", log=print)

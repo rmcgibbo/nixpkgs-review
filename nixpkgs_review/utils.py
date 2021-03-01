@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import IO, Any, Callable, List, Optional, Union
 
@@ -31,16 +32,22 @@ def sh(
     stderr=None,
     input=None,
 ) -> "subprocess.CompletedProcess[str]":
+    start_time = time.time()
     info("$ " + " ".join(command))
-    return subprocess.run(
-        command,
-        cwd=cwd,
-        check=check,
-        text=True,
-        stdout=stdout,
-        stderr=stderr,
-        input=input
-    )
+    try:
+        return subprocess.run(
+            command,
+            cwd=cwd,
+            check=check,
+            text=True,
+            stdout=stdout,
+            stderr=stderr,
+            input=input
+        )
+    finally:
+        elapsed = time.time() - start_time
+        if elapsed > 120.0:
+            info(f"{command[0]} subprocess took {elapsed:.1f} sec")
 
 
 def verify_commit_hash(commit: str) -> str:

@@ -274,16 +274,24 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
             has_timeout[drv] = line
 
     drv_path_to_attr = {a.drv_path: a for a in attrs}
-    for drv_path in has_failed_dependencies:
-        if drv_path in drv_path_to_attr:
-            attr = drv_path_to_attr[drv_path]
-            attr.build_err_msg = stderr
-
     for drv_path in has_timeout.keys():
         if drv_path in drv_path_to_attr:
             attr = drv_path_to_attr[drv_path]
             attr.build_err_msg = has_timeout[drv_path]
             attr.timed_out = True
+
+    for drv_path in has_failed_dependencies:
+        if drv_path in drv_path_to_attr:
+            attr = drv_path_to_attr[drv_path]
+            attr.build_err_msg = stderr
+
+            # Without inspecting the build graph, let's just guess
+            # that if something failed to build and there were ANY timeouts
+            # that it's probably the case that this guy's failure to build
+            # was probably caused by the timeout.
+            # e.g. https://github.com/NixOS/nixpkgs/pull/114609
+            if len(has_timeout) > 0:
+                attr.timed_out = True
 
     attrs = postprocess(attrs, drvs_to_build, nixpkgs=cache_directory / "nixpkgs")
     return attrs
