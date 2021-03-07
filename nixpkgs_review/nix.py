@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import sys
 import shlex
 import subprocess
 import time
@@ -25,6 +26,7 @@ class Attr:
     skipped: bool
     path: Optional[str]
     drv_path: Optional[str]
+    position: Optional[str]
     log_url: Optional[str] = field(default=None)
     check_report: List[str] = field(default_factory=lambda: [])
     aliases: List[str] = field(default_factory=lambda: [])
@@ -97,7 +99,10 @@ def nix_shell(attrs: List[str], cache_directory: Path) -> None:
     sh(["nix-shell", str(shell)], cwd=cache_directory, check=False)
 
 
-def _nix_eval_filter(json: Dict[str, Any]) -> List[Attr]:
+def _nix_eval_filter(
+    json: Dict[str, Any],
+    nixpkgs_path: Path
+) -> List[Attr]:
     # workaround https://github.com/NixOS/ofborg/issues/269
     blacklist = set(
         [
@@ -118,6 +123,7 @@ def _nix_eval_filter(json: Dict[str, Any]) -> List[Attr]:
             skipped=False,
             path=props["path"],
             drv_path=props["drvPath"],
+            position=os.path.relpath(props["position"], nixpkgs_path) if props["position"] is not None else None,
         )
         if attr.path is not None:
             other = attr_by_path.get(attr.path, None)
@@ -134,7 +140,7 @@ def _nix_eval_filter(json: Dict[str, Any]) -> List[Attr]:
     return list(attr_by_path.values()) + broken
 
 
-def nix_eval(attrs: Set[str]) -> List[Attr]:
+def nix_eval(attrs: Set[str], nixpkgs_path: Path) -> List[Attr]:
     attr_json = NamedTemporaryFile(mode="w+", delete=False)
     delete = True
     try:
@@ -163,7 +169,7 @@ def nix_eval(attrs: Set[str]) -> List[Attr]:
             delete = False
             raise
 
-        return _nix_eval_filter(json.loads(nix_eval.stdout))
+        return _nix_eval_filter(json.loads(nix_eval.stdout), nixpkgs_path=nixpkgs_path)
     finally:
         attr_json.close()
         if delete:
@@ -218,8 +224,8 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
         info("Nothing to be built.")
         return []
 
-    attrs = nix_eval(attr_names)
-    attrs = pre_build_filter(attrs, nixpkgs=cache_directory / "nixpkgs")
+    attrs = nix_eval(attr_names, nixpkgs_path=cache_directory / "nixpkgs")
+    attrs = pre_build_filter(attrs, nixpkgs_path=cache_directory / "nixpkgs")
     filtered = []
     for attr in attrs:
         if not (attr.broken or attr.blacklisted or attr.skipped):
@@ -230,6 +236,9 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
 
     build = cache_directory.joinpath("build.nix")
     write_shell_expression(build, filtered)
+
+    # Get list of all drvs that we're going to build when we run the
+    # `nix build` that's coming up
     drvs_to_build, _drvs_to_fetch = nix_build_dry(build)
 
     command = [
@@ -253,8 +262,6 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
         stderr = proc.stderr
     except subprocess.CalledProcessError as e:
         stderr = e.stderr
-
-    print(f"Nix build time: {time.time() - nix_build_before:.1f} sec")
 
     has_failed_dependencies = []
     has_timeout = {}
@@ -297,7 +304,7 @@ def nix_build(attr_names: Set[str], args: str, cache_directory: Path) -> List[At
     return attrs
 
 
-def pre_build_filter(attrs: List[Attr], nixpkgs: Path) -> List[Attr]:
+def pre_build_filter(attrs: List[Attr], nixpkgs_path: Path) -> List[Attr]:
     for cmd in (
         cmd
         for cmd in os.environ.get("NIXPKGS_REVIEW_PRE_BUILD_FILTER", "").split(":")
@@ -308,7 +315,7 @@ def pre_build_filter(attrs: List[Attr], nixpkgs: Path) -> List[Attr]:
                 "attrs": [attr.__dict__ for attr in attrs],
             }
         )
-        p = sh([cmd], input=encoded, stdout=subprocess.PIPE, cwd=nixpkgs)
+        p = sh([cmd], input=encoded, stdout=subprocess.PIPE, cwd=nixpkgs_path, stderr=sys.stdout)
         attrs = [Attr(**arg) for arg in json.loads(p.stdout)]
     return attrs
 
@@ -326,7 +333,7 @@ def postprocess(
                 "drvpaths_built": drvpaths_built,
             }
         )
-        p = sh([cmd], input=encoded, stdout=subprocess.PIPE, cwd=nixpkgs)
+        p = sh([cmd], input=encoded, stdout=subprocess.PIPE, cwd=nixpkgs, stderr=sys.stdout)
         attrs = [Attr(**arg) for arg in json.loads(p.stdout)]
     return attrs
 
