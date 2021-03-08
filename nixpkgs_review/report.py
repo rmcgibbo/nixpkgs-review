@@ -1,5 +1,6 @@
 import os
 import subprocess
+from itertools import islice
 from pathlib import Path
 from typing import Callable, List, Optional, Set
 
@@ -12,15 +13,18 @@ def print_number(
     msg: str,
     what: str = "package",
     log: Callable[[str], None] = warn,
-    show: bool = True,
+    show: int = -1,
 ) -> None:
     if len(packages) == 0:
         return
     plural = "s" if len(packages) > 1 else ""
     names = (a.name for a in packages)
+    colon = ":" if show else ""
     log(f"{len(packages)} {what}{plural} {msg}:")
-    if show:
+    if show == -1 or show > len(packages):
         log(" ".join(names))
+    else:
+        log(" ".join(islice(names, show)) + " ...")
     log("")
 
 
@@ -28,22 +32,26 @@ def html_pkgs_section(
     packages: List[Attr],
     msg: str,
     what: str = "package",
-    show: bool = True
+    show: int = -1
 ) -> str:
     if len(packages) == 0:
         return ""
     plural = "s" if len(packages) > 1 else ""
+
     res = "<details>\n"
     res += f"  <summary>{len(packages)} {what}{plural} {msg}:</summary>\n  <ul>\n"
-    if show:
-        for pkg in packages:
-            if pkg.log_url is not None:
-                res += f"    <li><a href=\"{pkg.log_url}\">{pkg.name}</a></li>"
-            else:
-                res += f"    <li>{pkg.name}"
-            if len(pkg.aliases) > 0:
-                res += f" ({' ,'.join(pkg.aliases)})"
-            res += "</li>\n"
+    for i, pkg in enumerate(packages):
+        if show > 0 and i >= show:
+            res += f"    <li>...</li>\n"
+            break
+
+        if pkg.log_url is not None:
+            res += f"    <li><a href=\"{pkg.log_url}\">{pkg.name}</a></li>"
+        else:
+            res += f"    <li>{pkg.name}"
+        if len(pkg.aliases) > 0:
+            res += f" ({' ,'.join(pkg.aliases)})"
+        res += "</li>\n"
     res += "  </ul>\n</details>\n"
     return res
 
@@ -129,13 +137,13 @@ class Report:
         link = "[1](https://github.com/Mic92/nixpkgs-review)"
         msg = f"Result of `{cmd}`{shortcommit} run on {self.system} {link}\n"
 
-        msg += html_pkgs_section(self.broken, "marked as broken and skipped")
+        msg += html_pkgs_section(self.broken, "marked as broken and skipped", show=10)
         msg += html_pkgs_section(
             self.non_existant,
             "present in ofBorgs evaluation, but not found in the checkout",
         )
         msg += html_pkgs_section(self.failed, "failed to build")
-        msg += html_pkgs_section(self.skipped, "skipped", show=False)
+        msg += html_pkgs_section(self.skipped, "skipped due to time constraints", show=10)
         msg += html_pkgs_section(self.timed_out, "timed out")
         msg += html_pkgs_section(self.tests, "built", what="test")
         msg += html_pkgs_section(self.built, "built")
@@ -154,7 +162,7 @@ class Report:
             "present in ofBorgs evaluation, but not found in the checkout",
         )
         print_number(self.blacklisted, "blacklisted")
-        print_number(self.skipped, "skipped", show=False)
+        print_number(self.skipped, "skipped due to time constraints", show=10)
         print_number(self.timed_out, "timed out", show=True)
         print_number(self.failed, "failed to build")
         print_number(self.tests, "built", what="tests", log=print)
