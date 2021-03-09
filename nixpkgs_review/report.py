@@ -171,12 +171,12 @@ class Report:
             self.non_existant,
             "present in ofBorgs evaluation, but not found in the checkout",
         )
-        msg += html_pkgs_section(self.failed_new, "failed to build (new)")
-        msg += html_pkgs_section(self.failed_existing, "failed to build (existing failures)")
+        msg += html_pkgs_section(self.failed_new, "failed to build (new failures)")
+        msg += html_pkgs_section(self.failed_existing, "still failed to build (pre-existing failures on hydra)")
         msg += html_pkgs_section(self.skipped, "skipped due to time constraints", show=10)
         msg += html_pkgs_section(self.timed_out, "timed out")
         msg += html_pkgs_section(self.tests, "built", what="test")
-        msg += html_pkgs_section(self.built, "built")
+        msg += html_pkgs_section(self.built, "built successfully")
         msg += html_check_reports(sorted(self.check_reports))
 
         return msg
@@ -198,4 +198,4 @@ class Report:
         print_number(self.failed_new, "failed to build (new failures)")
         print_number(self.failed_existing, "failed to build (existing failures)")
         print_number(self.tests, "built", what="tests", log=print)
-        print_number(self.built, "built", log=print)
+        print_number(self.built, "built successfully", log=print)
