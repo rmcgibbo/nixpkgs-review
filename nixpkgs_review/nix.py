@@ -53,7 +53,7 @@ class Attr:
     def is_test(self) -> bool:
         return self.name.startswith("nixosTests")
 
-    def log(self) -> Optional[str]:
+    def log(self, tail: int = -1) -> Optional[str]:
         def get_log(path) -> str:
             system = subprocess.run(
                 ["nix", "--experimental-features", "nix-command", "log", path],
@@ -61,7 +61,10 @@ class Attr:
                 stderr=subprocess.PIPE,
                 text=True,
             )
-            return strip_ansi_colors(system.stdout)
+            stdout = system.stdout
+            if tail > 0:
+                stdout = "This file has been truncated\n" + stdout[-tail:]
+            return strip_ansi_colors(stdout)
 
         if self.drv_path is None:
             return None

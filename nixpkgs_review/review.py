@@ -305,7 +305,7 @@ class Review:
     ) -> List[Optional[Dict[str, Any]]]:
         gists: List[Optional[Dict[str, Any]]] = []
         for pkg in attr:
-            log_content = pkg.log()
+            log_content = pkg.log(tail=1*1024*1014)
             build_time = pkg.build_time()
             description = f"system: {current_system()}"
             if build_time is not None:
