@@ -20,6 +20,7 @@ python3.pkgs.buildPythonApplication rec {
     # humanize fails to declare its dependency on septools correctly
     # https://github.com/NixOS/nixpkgs/pull/113060
     python3.pkgs.setuptools
+    python3.pkgs.beautifulsoup4
   ];
   checkInputs = [
     mypy

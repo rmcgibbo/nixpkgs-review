@@ -123,7 +123,7 @@ class Review:
         self.package_regex = package_regexes
         self.skip_packages = skip_packages
         self.skip_packages_regex = skip_packages_regex
-        self._rev: Optional[str] = None
+        self.pr_data: Optional[Dict] = None
 
     def worktree_dir(self) -> str:
         return str(self.builddir.worktree_dir)
@@ -183,14 +183,11 @@ class Review:
         else:
             self.git_worktree(pr_rev)
 
-        self._rev = pr_rev
-
     def fetch_pr_tarball(self, pr_rev: str) -> None:
         url = f"https://github.com/NixOS/nixpkgs/tarball/{pr_rev}"
         cmd = f"curl -L {url} | tar --strip-components 1 -xz --directory {self.worktree_dir()}"
         subprocess.run(cmd, shell=True, check=True)
         os.listdir(self.worktree_dir())
-        self._rev = pr_rev
 
     def build(self, packages: Set[str], args: str) -> List[Attr]:
         packages = filter_packages(
@@ -204,6 +201,7 @@ class Review:
 
     def build_pr_tarball(self, pr_number: int) -> List[Attr]:
         pr = self.github_client.pull_request(pr_number)
+        self.pr_data = pr
         assert self.use_ofborg_eval
         packages_per_system = self.github_client.get_borg_eval_gist(pr)
         assert packages_per_system is not None
@@ -218,6 +216,7 @@ class Review:
 
     def build_pr(self, pr_number: int) -> List[Attr]:
         pr = self.github_client.pull_request(pr_number)
+        self.pr_data = pr
         if self.use_ofborg_eval:
             packages_per_system = self.github_client.get_borg_eval_gist(pr)
         else:
@@ -262,13 +261,13 @@ class Review:
         os.environ["NIX_PATH"] = path.as_posix()
         if pr:
             os.environ["PR"] = str(pr)
-        report = Report(current_system(), attr, self._rev)
+        report = Report(current_system(), attr, self.pr_data)
 
         if post_logs:
             self.upload_build_logs(attr, pr)
 
-        report.print_console(pr)
-        report.write(path, pr)
+        report.print_console()
+        report.write(path)
 
         if pr and post_result:
             if self.pre_github_comment_hook(pr, report):
