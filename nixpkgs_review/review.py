@@ -1,5 +1,6 @@
 import argparse
 import json
+import functools
 import os
 import subprocess
 import sys
@@ -30,6 +31,7 @@ class CheckoutOption(Enum):
     COMMIT = 2
 
 
+@functools.lru_cache()
 def current_system() -> str:
     system = subprocess.run(
         [
@@ -304,7 +306,7 @@ class Review:
         self, attr: List[Attr], pr: Optional[int]
     ) -> List[Optional[Dict[str, Any]]]:
         gists: List[Optional[Dict[str, Any]]] = []
-        for pkg in attr:
+        for pkg in (a for a in attr if not (a.broken or a.blacklisted or a.skipped)):
             log_content = pkg.log(tail=1*1024*1014)
             build_time = pkg.build_time()
             description = f"system: {current_system()}"
