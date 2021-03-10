@@ -34,6 +34,8 @@ def sh(
 ) -> "subprocess.CompletedProcess[str]":
     start_time = time.time()
     info("$ " + " ".join(command))
+    sys.stdout.flush()
+    sys.stderr.flush()
     try:
         return subprocess.run(
             command,
