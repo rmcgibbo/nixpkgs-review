@@ -62,7 +62,7 @@ class Attr:
                 text=True,
             )
             stdout = system.stdout
-            if tail > 0:
+            if tail > 0 and len(stdout) > tail:
                 stdout = "This file has been truncated\n" + stdout[-tail:]
             return strip_ansi_colors(stdout)
 
