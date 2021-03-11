@@ -144,40 +144,57 @@ def _nix_eval_filter(
 
 
 def nix_eval(attrs: Set[str], nixpkgs_path: Path) -> List[Attr]:
-    attr_json = NamedTemporaryFile(mode="w+", delete=False)
-    delete = True
-    try:
-        json.dump(list(attrs), attr_json)
-        eval_script = str(ROOT.joinpath("nix/evalAttrs.nix"))
-        attr_json.flush()
-        cmd = [
-            "nix",
-            "--experimental-features",
-            "nix-command",
-            "eval",
-            "--json",
-            "--impure",
-            "--expr",
-            f"(import {eval_script} {attr_json.name})",
-        ]
-
+    def _eval(attrs: List[Attr]):
+        attr_json = NamedTemporaryFile(mode="w+", delete=False)
+        delete = True
         try:
-            nix_eval = subprocess.run(
-                cmd, check=True, stdout=subprocess.PIPE, text=True
-            )
-        except subprocess.CalledProcessError:
-            warn(
-                f"{' '.join(cmd)} failed to run, {attr_json.name} was stored inspection"
-            )
-            delete = False
-            raise
+            json.dump(attrs, attr_json)
+            eval_script = str(ROOT.joinpath("nix/evalAttrs.nix"))
+            attr_json.flush()
+            cmd = [
+                "nix",
+                "--experimental-features",
+                "nix-command",
+                "eval",
+                "--json",
+                "--impure",
+                "--expr",
+                f"(import {eval_script} {attr_json.name})",
+            ]
 
-        return _nix_eval_filter(json.loads(nix_eval.stdout), nixpkgs_path=nixpkgs_path)
-    finally:
-        attr_json.close()
-        if delete:
-            os.unlink(attr_json.name)
+            try:
+                nix_eval = subprocess.run(
+                    cmd, check=True, stdout=subprocess.PIPE, text=True
+                )
+            except subprocess.CalledProcessError:
+                warn(
+                    f"{' '.join(cmd)} failed to run, {attr_json.name} was stored inspection"
+                )
+                delete = False
+                raise
 
+            return _nix_eval_filter(json.loads(nix_eval.stdout), nixpkgs_path=nixpkgs_path)
+        finally:
+            attr_json.close()
+            if delete:
+                os.unlink(attr_json.name)
+
+    #
+    # Split the evaluation into chunks of 4096 attrs at a time.
+    # This helps limit the memory usage, which can be a problem.
+    #
+    start_time = time.time()
+    results = []
+    attrlist = sorted(attrs)
+    MAX_ATTRS_AT_ONCE = 4096
+    for i in range(0, len(attrs), MAX_ATTRS_AT_ONCE):
+        chunk = attrlist[i : i + MAX_ATTRS_AT_ONCE]
+        results.extend(_eval(chunk))
+
+    if time.time() - start_time > 30:
+        info(f"Time required for nix eval: {time.time() - start_time:.0f} sec")
+
+    return results
 
 def nix_build_dry(filename: Path) -> Tuple[List[str], List[str]]:
 

@@ -31,6 +31,7 @@ def sh(
     stdout=None,
     stderr=None,
     input=None,
+    **kwargs
 ) -> "subprocess.CompletedProcess[str]":
     start_time = time.time()
     info("$ " + " ".join(command))
@@ -44,7 +45,8 @@ def sh(
             text=True,
             stdout=stdout,
             stderr=stderr,
-            input=input
+            input=input,
+            **kwargs,
         )
     finally:
         elapsed = time.time() - start_time
